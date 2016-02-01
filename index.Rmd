@@ -1,0 +1,159 @@
+---
+title: "Practical Machine Learning - Prediction Assignment Writeup"
+author: "F.A.Rahim"
+date: "Monday, February 01, 2016"
+output: html_document
+---
+
+##Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+##Data
+
+The training data for this project are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+##Goal
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You will see a report describing how we built our model, how we used cross validation, what we think the expected out of sample error is, and why we made the choices we did. We use our prediction model to predict 20 different test cases in this project.
+
+##Preliminary Work
+
+First, we set the seed at 1234 for reproduceability. We then downloaded, installed and loaded the required packages that are going to be used in this project which are caret, randomForest, rpart and rpart.plot.
+
+This report outcome variable is classe and factor variable with 5 levels. For this dataset, "participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in 5 different fashions:
+
+Class A = really according to the specification
+Class B = elbowed to the front
+Class C = lifting the dumbbell only halfway
+Class D = dropping the dumbbell only halfway
+Class E = throwing the hips to the front
+
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes." Prediction evaluations will be based on maximizing the accuracy and minimizing the out-of-sample error. All other available variables after cleaning will be used for prediction. Two models will be tested using Decision Tree and Random Forest algorithms. The model with the highest accuracy will be selected.
+
+##Expected sample error
+
+The expected out-of-sample error will correspond to the quantity: 1-accuracy in the cross-validation data. Accuracy is the proportion of correct classified observation over the total sample in the subTesting data set. Expected accuracy is the expected accuracy in the out-of-sample data set (i.e. original testing data set). Thus, the expected value of the out-of-sample error will correspond to the expected number of missclassified observations/total observations in the Test data set, which is the quantity: 1-accuracy found from the cross-validation data set.
+
+##Cross-validation
+
+We will perform cross-validation by subsampling our training data set randomly without replacement into 2 subsamples: subTraining data (75% of the original Training data set) and subTesting data (25%). We will fit our models on the subTraining data set, and then test them on the subTesting data. Once the most accurate model is choosen, we will test it on the original Testing data set.
+
+##Reasons for my choices
+
+Our outcome variable "classe" is an unordered factor variable. Thus, we can choose our error type as 1-accuracy. Large sample size with N = 19622 in the Training data set. So it were divided into subTraining and combine with subTesting to allow cross-validation. Columns or fields with all missing values will be discarded as well as features that are irrelevant. All other features will be kept as relevant variables. Random Forest and Decision Tree algorithms are known for their ability of detecting the features that are important for classification.
+
+##Preprocessing
+
+We set the working directory and seed, and load the installed libraries.
+
+```{r, echo=TRUE}
+setwd("~/Coursera/Assignments/RProgramming/Module8-Assignment")
+set.seed(1234)
+library(caret)
+library(randomForest) #Random forest for classification and regression
+library(rpart) #Regressive Partitioning and Regression trees
+```
+
+Now we load the data sets into R, interpreting the miscellaneous NA, #DIV/0! and empty fields as "NA".
+
+```{r,echo=TRUE}
+trainingData <- read.csv("pml-training.csv", header=T, na.strings=c("NA","#DIV/0!", ""))
+testingData <- read.csv('pml-testing.csv', header=T, na.strings=c("NA","#DIV/0!", ""))
+```
+
+###Cleaning the data
+
+We partition and preprocess the training data using the code described below. We exclude all variables with at least one 'NA' from the analysis, as well as variables related to time and user information, where a total of 51 variables and 19622 class measurements were excluded. We maintain the same variables in the test data set (Validation dataset) to be used for predicting the 20 test cases provided.
+
+```{r, echo=TRUE}
+## NA exclusion for all available variables
+noNATrainingData<-trainingData[, apply(trainingData, 2, function(x) !any(is.na(x)))] 
+dim(noNATrainingData)
+```
+
+```{r, echo=TRUE}
+## variables with user information, time and undefined
+cleanTrainingData<-noNATrainingData[,-c(1:8)]
+dim(cleanTrainingData)
+```
+
+```{r, echo=TRUE}
+## 20 test cases provided clean info - Validation data set
+cleanTestingData<-testingData[,names(cleanTrainingData[,-52])]
+dim(cleanTestingData)
+```
+
+###Partitioning the data and prediction process
+
+Now we subset the cleaned downloaded data set to generate a test set independent from the 20 cases provided set. We perform data partitioning to obtain a 75% training set and a 25% test set.
+
+```{r, echo=TRUE}
+#data cleaning
+inTrain<-createDataPartition(y=cleanTrainingData$classe, p=0.75,list=F)
+training<-cleanTrainingData[inTrain,] 
+test<-cleanTrainingData[-inTrain,] 
+```
+
+```{r,echo=TRUE}
+#Training and test set dimensions
+dim(training)
+```
+
+```{r,echo=TRUE}
+dim(test)
+```
+
+##Results and Conclusions
+
+We generate random forest trees for the training dataset using cross-validation. Then we examine the generated algorithm under the partitioned training set to examine the accuracy and estimated error of prediction. By using 51 predictors for five classes using cross-validation at a 5-fold an accuracy of 99.2% with a 95% CI [0.989-0.994] was achieved accompanied by a Kappa value of 0.99.
+
+```{r,echo=TRUE}
+fitControl2<-trainControl(method="cv", number=5, allowParallel=T, verbose=T)
+rffit<-train(classe~.,data=training, method="rf", trControl=fitControl2, verbose=F)
+```
+
+```{r,echo=TRUE}
+predrf<-predict(rffit, newdata=test)
+confusionMatrix(predrf, test$classe)
+```
+
+```{r,echo=TRUE}
+pred20<-predict(rffit, newdata=cleanTestingData)
+pred20
+```
+
+So now we run a boosting algorithm to confirm and be able to compare predictions. Data is not shown but the boosting approach presented less accuracy (96%) (Data not shown). However, when the predictions for the 20 test cases were compared match was same for both ran algorimths.
+
+```{r, echo=TRUE, results='hide'}
+fitControl2<-trainControl(method="cv", number=5, allowParallel=T, verbose=T)
+gmbfit<-train(classe~.,data=training, method="gbm", trControl=fitControl2, verbose=F)
+gmbfit$finalModel
+class(gmbfit)
+predgmb<-predict(gmbfit, newdata=test)
+confusionMatrix(predgmb, test$classe)
+predtrain<-predict(gmbfit, newdata=training)
+confusionMatrix(predtrain, training$classe)
+predtrain<-predict(gmbfit, newdata=training)
+confusionMatrix(predtrain, training$classe)
+```
+
+Once we obtain the predictions for the 20 test cases provided, we use the script below to obtain single text files to be uploaded to the courses web site to comply with the submission assigment. 20 out of 20 hits also confirmed the accuracy of the obtained models.
+
+```{r, echo=TRUE}
+getwd()
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(pred20)
+```
