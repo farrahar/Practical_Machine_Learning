@@ -1,0 +1,16 @@
+---
+title: "README"
+author: "F.A.Rahim"
+date: "Monday, February 01, 2016"
+output: html_document
+---
+
+Dear graders,
+
+My work for this assignment is the index.rmd and index.html. 
+
+For your ease of viewing, the index.html can also be viewed here: http://rpubs.com/farrahar/149466 .
+
+Thank you.
+
+F.A.Rahim
